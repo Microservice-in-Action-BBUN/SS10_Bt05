@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Báo Cáo Bài Tập 5: Đảm Bảo Thứ Tự Sự Kiện Với Kafka Partition Key</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 18mm 15mm 18mm 15mm;
+            @bottom-right {
+                content: counter(page);
+            }
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #24292e;
+            background: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+        .header-container {
+            border-bottom: 3px solid #00875a;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+        .badge {
+            display: inline-block;
+            background: #e3fcef;
+            color: #00875a;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        h1 {
+            color: #00875a;
+            font-size: 22px;
+            margin: 5px 0 10px 0;
+            line-height: 1.3;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: #57606a;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            background: #f6f8fa;
+            padding: 10px 14px;
+            border-radius: 6px;
+            border-left: 4px solid #00875a;
+            font-size: 12px;
+        }
+        .meta-item strong {
+            color: #24292e;
+        }
+        h2 {
+            color: #24292e;
+            font-size: 16px;
+            border-bottom: 1.5px solid #d0d7de;
+            padding-bottom: 5px;
+            margin-top: 22px;
+            margin-bottom: 10px;
+        }
+        h3 {
+            color: #32383f;
+            font-size: 14px;
+            margin-top: 14px;
+            margin-bottom: 6px;
+        }
+        p, li {
+            text-align: justify;
+        }
+        ul, ol {
+            margin: 6px 0 10px 20px;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #d0d7de;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        th {
+            background: #f6f8fa;
+            font-weight: 600;
+            color: #24292e;
+        }
+        tr:nth-child(even) {
+            background-color: #fcfdfd;
+        }
+        .alert-box {
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin: 12px 0;
+            font-size: 12px;
+        }
+        .alert-danger {
+            background: #ffebe9;
+            border-left: 4px solid #cf222e;
+            color: #82071e;
+        }
+        .alert-success {
+            background: #dafbe1;
+            border-left: 4px solid #1a7f37;
+            color: #116329;
+        }
+        .alert-info {
+            background: #ddf4ff;
+            border-left: 4px solid #0969da;
+            color: #0969da;
+        }
+        pre {
+            background: #f6f8fa;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.45;
+            overflow-x: auto;
+            margin: 8px 0 12px 0;
+        }
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            background: #eff1f3;
+            padding: 2px 4px;
+            border-radius: 3px;
+            color: #b31d28;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+            color: #24292e;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #eaecef;
+            font-size: 11px;
+            color: #6a737d;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-container">
+    <div class="badge">BÁO CÁO KỸ THUẬT & KIẾN TRÚC THÔNG ĐIỆP KAFKA</div>
+    <h1>BÀI TẬP 5: ĐẢM BẢO THỨ TỰ SỰ KIỆN VỚI KAFKA PARTITION KEY</h1>
+    <div class="subtitle">Giải quyết bài toán Tính nhất quán cuối (Eventual Consistency) trong kiến trúc Event-Driven StoreX</div>
+    <div class="meta-grid">
+        <div class="meta-item"><strong>Khóa học:</strong> Microservices System Design (Rikkei Education)</div>
+        <div class="meta-item"><strong>Hệ thống:</strong> Nền tảng E-Commerce StoreX</div>
+        <div class="meta-item"><strong>Topic:</strong> order-tracking (5 Partitions)</div>
+        <div class="meta-item"><strong>Công nghệ:</strong> Apache Kafka, Spring Kafka 3.x, MurmurHash2 Partitioner</div>
+    </div>
+</div>
+
+<h2>1. Bối cảnh Nghiệp vụ & Thách thức Kiến trúc</h2>
+<p>
+    Trong hệ thống <strong>StoreX</strong>, một đơn hàng di chuyển qua 3 giai đoạn then chốt trong vòng đời:
+    <br/><center><strong>CREATED (Khởi tạo) &rarr; PAID (Đã thanh toán) &rarr; SHIPPED (Đang giao hàng)</strong></center>
+</p>
+<p>
+    Các sự kiện này được đẩy vào Kafka topic <code>order-tracking</code>. Topic được cấu hình có <strong>5 Partitions</strong> để nhiều Consumer đọc song song nhằm gia tăng thông lượng.
+</p>
+<p>
+    <strong>Ràng buộc nghiêm ngặt:</strong> Các sự kiện của cùng 1 đơn hàng bắt buộc phải được xử lý theo đúng trình tự thời gian. Nếu hệ thống xử lý <code>SHIPPED</code> trước <code>PAID</code>, kho hàng sẽ xuất hàng cho một đơn hàng chưa thanh toán, gây thất thoát tài chính đặc biệt nghiêm trọng.
+</p>
+
+<h2>2. Phần 1 - Phân Tích Kỹ Thuật</h2>
+
+<h3>2.1. Vì sao việc chia Partition làm mất thứ tự tổng thể của các sự kiện?</h3>
+<ul>
+    <li>
+        <strong>Nguyên tắc cốt lõi của Kafka:</strong> Apache Kafka <strong>không đảm bảo thứ tự toàn cục (Global Ordering)</strong> trên toàn bộ topic. Kafka <strong>chỉ đảm bảo thứ tự tuyệt đối bên trong từng Partition (Total Order within a Partition)</strong>.
+    </li>
+    <li>
+        Trong một partition, các bản tin được ghi nối tiếp vào commit log với offset tăng dần. Nhưng khi topic được chia làm nhiều partition, mỗi partition được gán cho một Consumer thread độc lập.
+    </li>
+    <li>
+        Do sự chênh lệch về tốc độ xử lý giữa các thread, độ trễ mạng, hoặc GC pause, Consumer đọc partition này có thể xử lý nhanh hơn Consumer đọc partition khác. Nếu các sự kiện của cùng 1 đơn hàng bị rải rác sang các partition khác nhau, thứ tự xử lý sẽ bị đảo lộn hoàn toàn.
+    </li>
+</ul>
+
+<h3>2.2. Minh họa bằng ví dụ cụ thể</h3>
+<p>
+    Xét đơn hàng có <code>orderId = 1001</code>. Nếu Producer không chỉ định key (Round-robin):
+</p>
+<ul>
+    <li>Sự kiện 1: <code>CREATED</code> (10:00:00) &rarr; rơi vào <strong>Partition 0</strong>.</li>
+    <li>Sự kiện 2: <code>PAID</code> (10:00:05) &rarr; rơi vào <strong>Partition 2</strong>.</li>
+    <li>Sự kiện 3: <code>SHIPPED</code> (10:00:10) &rarr; rơi vào <strong>Partition 4</strong>.</li>
+</ul>
+<div class="alert-box alert-danger">
+    <strong>Sự cố phát sinh:</strong> Consumer đang đọc Partition 2 bị nghẽn I/O Database trong 15 giây. Trong khi đó, Consumer đọc Partition 4 chạy rất nhanh, nhận và xử lý sự kiện <code>SHIPPED</code> vào lúc 10:00:11. Đến 10:00:20 Consumer 2 mới đọc tới <code>PAID</code>. Kết quả: Đơn hàng bị xuất kho trước khi thanh toán!
+</div>
+
+<div class="page-break"></div>
+
+<h2>3. Phần 2 - Thiết Kế Giải Pháp Với Partition Key</h2>
+
+<h3>3.1. Cơ chế Partition Key & Thuật toán MurmurHash2</h3>
+<p>
+    Giải pháp triệt để là Producer bắt buộc phải gán <code>partitionKey = String.valueOf(orderId)</code> trong mọi bản tin gửi đi:
+</p>
+<ul>
+    <li>
+        <strong>Thuật toán băm MurmurHash2:</strong> Kafka sử dụng hàm băm tất định (Deterministic Hashing) để tính toán partition đích:
+        <br/><center><code>partition = Utils.toPositive(Utils.murmur2(keyBytes)) % 5</code></center>
+    </li>
+    <li>
+        <strong>Tính nhất quán:</strong> Vì chuỗi <code>key</code> của đơn hàng là cố định (ví dụ <code>"1001"</code>), giá trị băm không bao giờ thay đổi. Do đó, toàn bộ 3 sự kiện <code>CREATED</code>, <code>PAID</code>, <code>SHIPPED</code> của đơn hàng #1001 luôn luôn được ghi vào <strong>cùng một Partition duy nhất</strong>.
+    </li>
+    <li>
+        Vì nằm trong cùng một partition, chúng chỉ được phục vụ bởi <strong>duy nhất 1 Consumer thread</strong> và được đọc tuần tự theo đúng thứ tự offset ban đầu.
+    </li>
+</ul>
+
+<h3>3.2. Giải thích số lượng Consumer tối đa cho topic có 5 Partitions</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Số lượng Consumer trong Group</th>
+            <th>Cơ chế phân bổ Partition</th>
+            <th>Đánh giá hiệu năng & Tài nguyên</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>1 Consumer</strong></td>
+            <td>1 Consumer đọc toàn bộ 5 Partitions</td>
+            <td>Không khai thác được xử lý song song; thông lượng thấp.</td>
+        </tr>
+        <tr>
+            <td><strong>3 Consumers</strong></td>
+            <td>C1 đọc 2 partitions, C2 đọc 2 partitions, C3 đọc 1 partition</td>
+            <td>Xử lý song song mức trung bình.</td>
+        </tr>
+        <tr style="background-color: #dafbe1; font-weight: bold;">
+            <td><strong>5 Consumers (TỐI ƯU NHẤT)</strong></td>
+            <td>Mỗi Consumer phụ trách chính xác 1 Partition</td>
+            <td>Đạt thông lượng tối đa (Max Throughput), tải cân bằng tuyệt đối.</td>
+        </tr>
+        <tr>
+            <td><strong>6 Consumers trở lên</strong></td>
+            <td>5 Consumer đọc 5 Partitions, các Consumer còn lại IDLE</td>
+            <td><strong>LÃNG PHÍ TÀI NGUYÊN!</strong> Consumer thứ 6 không có partition nào để đọc (ở trạng thái chờ/dự phòng).</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert-box alert-info">
+    <strong>Kết luận cấu hình:</strong> Trong Apache Kafka, một partition không bao giờ được gán cho nhiều hơn 1 consumer trong cùng một Consumer Group. Do đó, <strong>số lượng Consumer tối đa có hiệu lực luôn bằng số lượng Partitions (= 5 Consumers)</strong>.
+</div>
+
+<div class="page-break"></div>
+
+<h2>4. Phần 3 - Mã Nguồn Cài Đặt</h2>
+
+<h3>4.1. Topic Configuration (`KafkaTopicConfig.java`)</h3>
+<pre><code>@Configuration
+public class KafkaTopicConfig {
+
+    public static final String ORDER_TRACKING_TOPIC = "order-tracking";
+    public static final int TOTAL_PARTITIONS = 5;
+
+    @Bean
+    public NewTopic orderTrackingTopic() {
+        return TopicBuilder.name(ORDER_TRACKING_TOPIC)
+                .partitions(TOTAL_PARTITIONS)
+                .replicas(1)
+                .build();
+    }
+}</code></pre>
+
+<h3>4.2. Producer Gửi Với Partition Key (`OrderTrackingProducer.java`)</h3>
+<pre><code>@Service
+@Slf4j
+@RequiredArgsConstructor
+public class OrderTrackingProducer {
+
+    private final KafkaTemplate&lt;String, OrderTrackingEvent&gt; kafkaTemplate;
+
+    public CompletableFuture&lt;SendResult&lt;String, OrderTrackingEvent&gt;&gt; sendTrackingEvent(OrderTrackingEvent event) {
+        // Ép toàn bộ sự kiện của cùng đơn hàng vào cùng partition bằng orderId làm key
+        String partitionKey = String.valueOf(event.getOrderId());
+
+        log.info("Producer gửi sự kiện [orderId={}, status={}] với Partition Key=[{}]",
+                event.getOrderId(), event.getStatus(), partitionKey);
+
+        return kafkaTemplate.send(KafkaTopicConfig.ORDER_TRACKING_TOPIC, partitionKey, event);
+    }
+}</code></pre>
+
+<h3>4.3. Consumer Kiểm Soát Thứ Tự (`OrderTrackingConsumer.java`)</h3>
+<pre><code>@Service
+@Slf4j
+public class OrderTrackingConsumer {
+
+    private final ConcurrentHashMap&lt;Long, OrderStatus&gt; orderCurrentState = new ConcurrentHashMap&lt;&gt;();
+
+    // Concurrency = 5: Tối đa 5 consumer threads tương ứng 5 partitions
+    @KafkaListener(topics = "order-tracking", groupId = "order-tracking-group", concurrency = "5")
+    public void consume(
+            ConsumerRecord&lt;String, OrderTrackingEvent&gt; record,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset) {
+
+        OrderTrackingEvent event = record.value();
+        validateAndProcessStatusTransition(event.getOrderId(), event.getStatus(), partition, offset);
+    }
+
+    public synchronized void validateAndProcessStatusTransition(Long orderId, OrderStatus newStatus, int partition, long offset) {
+        OrderStatus currentStatus = orderCurrentState.get(orderId);
+        if (currentStatus == null) {
+            if (newStatus != OrderStatus.CREATED) {
+                throw new IllegalStateException("Lỗi thứ tự: Đơn hàng " + orderId + " nhận " + newStatus + " khi chưa có CREATED");
+            }
+            orderCurrentState.put(orderId, OrderStatus.CREATED);
+            return;
+        }
+
+        if (currentStatus == OrderStatus.CREATED && newStatus == OrderStatus.PAID) {
+            orderCurrentState.put(orderId, OrderStatus.PAID);
+        } else if (currentStatus == OrderStatus.PAID && newStatus == OrderStatus.SHIPPED) {
+            orderCurrentState.put(orderId, OrderStatus.SHIPPED);
+        } else {
+            throw new IllegalStateException("Lỗi thứ tự: Chuyển đổi trạng thái bất hợp lệ từ " + currentStatus + " sang " + newStatus);
+        }
+    }
+}</code></pre>
+
+<h2>5. Kết Quả Kiểm Thử Đơn Vị (Unit Test)</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Kịch bản Kiểm thử</th>
+            <th>Mục tiêu & Dữ liệu</th>
+            <th>Kết quả mong đợi</th>
+            <th>Trạng thái</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>testProducer_UsesOrderIdAsPartitionKey</code></td>
+            <td>Gửi 3 sự kiện của orderId 8888.</td>
+            <td>Tất cả 3 lần gửi đều dùng chung key <code>"8888"</code>.</td>
+            <td><span style="color: #1a7f37; font-weight: bold;">PASSED ✅</span></td>
+        </tr>
+        <tr>
+            <td><code>testConsumer_ProcessesEventsInOrder</code></td>
+            <td>Gửi tuần tự CREATED &rarr; PAID &rarr; SHIPPED.</td>
+            <td>Chuyển trạng thái hợp lệ, kết thúc ở SHIPPED.</td>
+            <td><span style="color: #1a7f37; font-weight: bold;">PASSED ✅</span></td>
+        </tr>
+        <tr>
+            <td><code>testConsumer_DetectsOutOfOrderTransition</code></td>
+            <td>Mô phỏng nhận SHIPPED trước khi PAID.</td>
+            <td>Consumer chặn lại và ném <code>IllegalStateException</code>.</td>
+            <td><span style="color: #1a7f37; font-weight: bold;">PASSED ✅</span></td>
+        </tr>
+        <tr>
+            <td><code>testMurmurHash2_GuaranteesSinglePartition</code></td>
+            <td>Chạy 1.000 lần thuật toán băm MurmurHash2 với cùng key.</td>
+            <td>100% đều ra cùng 1 Partition ID duy nhất.</td>
+            <td><span style="color: #1a7f37; font-weight: bold;">PASSED ✅</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="alert-box alert-success">
+    <strong>Xác nhận kết quả:</strong> 100% các bài test đều vượt qua (Build SUCCESS). Tính toàn vẹn thứ tự được bảo toàn tuyệt đối.
+</div>
+
+<div class="footer">
+    Báo Cáo Kỹ Thuật - Hệ Thống Tracking StoreX | Rikkei Education &copy; 2026
+</div>
+
+</body>
+</html>

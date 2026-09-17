@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: storex-order-tracking-service
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    consumer:
+      group-id: order-tracking-group
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.value.default.type: com.storex.tracking.model.OrderTrackingEvent
+    listener:
+      # Cấu hình tối đa 5 Consumer threads trong Consumer Group tương ứng với 5 Partitions
+      concurrency: 5
+
+logging:
+  level:
+    com.storex.tracking: DEBUG
+    org.springframework.kafka: INFO
